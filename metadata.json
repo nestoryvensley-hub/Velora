@@ -1,0 +1,6 @@
+{
+  "name": "VÉLORA FINDS",
+  "description": "Thoughtful, Cozy & Viral Finds — Curated to Brighten Everyday Life.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
