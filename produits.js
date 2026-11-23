@@ -22,7 +22,7 @@ window.PRODUCTS = [
     "badge": "New Find",
     "shortDesc": "Thoughtful everyday upgrade designed to simplify your daily routine.",
     "images": [
-      "images/bottles-0-1795472544981.jpg"
+      "images/bottles-0-1795472605069.jpg"
     ],
     "photoStyle": {
       "brightness": 105,
