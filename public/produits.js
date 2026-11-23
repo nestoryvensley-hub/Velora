@@ -7,7 +7,7 @@ window.SITE_CONFIG = {
   "tagline": "Thoughtful, Cozy & Viral Finds — Curated to Brighten Everyday Life.",
   "email": "monemail@gmail.com",
   "theme": "cream-terracotta",
-  "adminPin": "2027"
+  "adminPassHash": "velora-v1$9f4c82a1e7b305d6$182afdd52d3914935a1b8945ef2d4737c9fb886c5bceee82afd7a8bda679e671"
 };
 
 window.PRODUCTS = [

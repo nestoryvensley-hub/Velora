@@ -300,8 +300,19 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
 .love-pill-remove:hover{background:#b42318;color:#ffffff}
 .checkbox-row{display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;font-weight:700;cursor:pointer}
 .checkbox-row input{width:20px;height:20px;accent-color:var(--accent)}
-.publish-footer-panel{background:var(--surface);border:2px solid var(--accent-soft);border-radius:24px;padding:22px;box-shadow:var(--shadow-float);display:flex;flex-direction:column;gap:14px}
-.publish-footer-actions{display:flex;flex-wrap:wrap;gap:12px}
+.publish-footer-panel{background:var(--surface);border:2px solid var(--accent-soft);border-radius:24px;padding:22px;box-shadow:var(--shadow-float);display:flex;flex-direction:column;gap:16px}
+.publish-footer-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.pw-wrap{position:relative;display:flex;align-items:center;width:100%}
+.pw-wrap .adm-input{padding-right:46px}
+.pw-toggle-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:10px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:16px}
+.pw-toggle-btn:hover{background:var(--surface-soft);color:var(--text)}
+.github-conn-box{background:var(--surface-soft);border:1px solid var(--border);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.github-conn-title{margin:0;font-size:15px;font-weight:800;color:var(--text)}
+.github-status-box{padding:12px 15px;border-radius:14px;font-size:13.5px;font-weight:700;line-height:1.5;background:var(--surface-soft);color:var(--text);border:1px solid var(--border)}
+.github-status-box.is-progress{background:var(--accent-soft);color:var(--accent-hover);border-color:var(--coral-border)}
+.github-status-box.is-success{background:var(--trust-soft);color:var(--trust);border-color:var(--sage-border)}
+.github-status-box.is-error{background:#fef3f2;color:#b42318;border-color:rgba(180,35,24,0.28)}
+.adm-btn:disabled{opacity:0.65;cursor:not-allowed;transform:none}
 .toast-msg{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:150;width:max-content;max-width:calc(100vw - 32px);text-align:center;background:var(--text);color:var(--surface);padding:12px 20px;border-radius:12px;font-size:14px;font-weight:700;box-shadow:var(--shadow-float-hover)}
 .publish-code-area{width:100%;min-height:180px;padding:12px;border-radius:12px;border:1px solid var(--border-strong);background:var(--bg);color:var(--text);font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:12px;margin-top:12px}
 .github-steps{padding:14px 16px;border-radius:12px;background:var(--trust-soft);color:var(--text);font-size:14px;font-weight:700;line-height:1.5}
@@ -495,25 +506,37 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
   <div class="admin-pin-box">
    <h2>🔒 Studio Admin Privé</h2>
    <p>
-    Accès réservé au propriétaire. Entrez votre code PIN pour gérer vos produits depuis votre téléphone et publier sur GitHub.
+    Accès réservé au propriétaire. Entrez votre code ou mot de passe pour gérer vos produits depuis votre téléphone et publier sur GitHub.
    </p>
    <form id="adminPinForm">
     <div class="field" style="text-align: left; margin-bottom: 14px">
-    <label for="adminPinInput">Code PIN</label>
-    <input
-     id="adminPinInput"
-     type="password"
-     inputmode="numeric"
-     class="adm-input"
-     placeholder="Ex: 2027"
-     required
-    />
+    <label for="adminPinInput">Code PIN / Mot de passe</label>
+    <div class="pw-wrap">
+     <input
+      id="adminPinInput"
+      type="password"
+      inputmode="text"
+      autocomplete="current-password"
+      autocapitalize="off"
+      autocorrect="off"
+      spellcheck="false"
+      class="adm-input"
+      placeholder="Entrez votre code ou mot de passe"
+      required
+     />
+     <button
+      type="button"
+      id="toggleAdminPinBtn"
+      class="pw-toggle-btn"
+      aria-label="Afficher ou masquer le mot de passe"
+     >👁️</button>
+    </div>
     </div>
     <button type="submit" class="adm-btn adm-btn-primary" style="width: 100%">
     Déverrouiller le Studio
     </button>
     <div id="adminPinError" class="error-text hidden">
-    Code PIN incorrect. Réessayez.
+    Code ou mot de passe incorrect. Réessayez.
     </div>
    </form>
    <button
@@ -886,8 +909,16 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
      </div>
 
      <div class="field">
-      <label for="cfgPin">Code PIN du Studio Admin</label>
-      <input id="cfgPin" type="text" class="adm-input" />
+      <label for="cfgPin">Code PIN ou mot de passe du Studio Admin</label>
+      <input
+       id="cfgPin"
+       type="text"
+       inputmode="text"
+       autocapitalize="off"
+       autocorrect="off"
+       spellcheck="false"
+       class="adm-input"
+      />
      </div>
 
      <div class="field" style="grid-column: 1 / -1">
@@ -927,20 +958,83 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    <div class="publish-footer-panel">
     <div>
     <h2 style="margin: 0 0 4px; font-size: 18px; font-weight: 800">
-     🚀 Publier vos changements sur GitHub (GitHub Pages)
+     🚀 Publier en direct sur GitHub Pages
     </h2>
     <p style="margin: 0; font-size: 13.5px; color: var(--text-muted)">
-     Téléchargez directement votre fichier <strong>produits.js</strong> prêt à l'emploi puis remplacez-le dans votre dépôt GitHub (Commit changes).
+     Envoyez vos nouvelles photos et vos modifications directement en ligne sans quitter cette page.
     </p>
     </div>
-    <div class="publish-footer-actions">
-    <button type="button" class="adm-btn adm-btn-primary" id="downloadProduitsBtn">
-     💾 Télécharger produits.js
-    </button>
-    <button type="button" class="adm-btn" id="copyCodeModalBtn">
-     📋 Copier le code
-    </button>
+
+    <div class="github-conn-box">
+     <h3 class="github-conn-title">⚙️ Connexion GitHub (à configurer 1 seule fois)</h3>
+     <div class="form-grid form-grid-2">
+      <div class="field">
+       <label for="ghOwnerInput">Propriétaire GitHub</label>
+       <input
+        id="ghOwnerInput"
+        type="text"
+        class="adm-input"
+        placeholder="Ex: mon-pseudo"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+       />
+      </div>
+      <div class="field">
+       <label for="ghRepoInput">Nom du dépôt</label>
+       <input
+        id="ghRepoInput"
+        type="text"
+        class="adm-input"
+        placeholder="Ex: velora-finds"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+       />
+      </div>
+      <div class="field" style="grid-column: 1 / -1">
+       <label for="ghTokenInput">Mon Token secret GitHub</label>
+       <div class="pw-wrap">
+        <input
+         id="ghTokenInput"
+         type="password"
+         inputmode="text"
+         class="adm-input"
+         placeholder="github_pat_..."
+         autocomplete="off"
+         autocapitalize="off"
+         autocorrect="off"
+         spellcheck="false"
+        />
+        <button
+         type="button"
+         id="toggleGhTokenBtn"
+         class="pw-toggle-btn"
+         aria-label="Afficher ou masquer le token GitHub"
+        >👁️</button>
+       </div>
+       <span class="field-hint">
+        Stocké uniquement dans la mémoire privée de cet appareil (localStorage). Jamais envoyé dans produits.js ni visible par les visiteurs.
+       </span>
+      </div>
+     </div>
     </div>
+
+    <div class="publish-footer-actions">
+     <button type="button" class="adm-btn adm-btn-primary" id="publishGithubBtn">
+      🚀 Publier en direct pour tout le monde
+     </button>
+     <button type="button" class="adm-btn" id="downloadProduitsBtn">
+      💾 Télécharger produits.js
+     </button>
+     <button type="button" class="adm-btn" id="copyCodeModalBtn">
+      📋 Copier le code
+     </button>
+    </div>
+
+    <div id="githubPublishStatus" class="github-status-box hidden" role="status" aria-live="polite"></div>
    </div>
   </div>
   </div>
@@ -986,6 +1080,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
   "use strict";
 
   const DRAFT_KEY = "velora_finds_admin_draft_v2";
+  const GH_CONN_KEY = "velora_finds_github_conn_v1";
   const DEFAULT_PHOTO_STYLE = {
    brightness: 105,
    contrast: 105,
@@ -1304,6 +1399,210 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     JSON.stringify(cleanProducts, null, 2) +
     ";\n"
    );
+  }
+
+  function detectGitHubDefaults(hostname, pathname) {
+   const host = String(hostname || "").trim().toLowerCase();
+   let owner = "";
+   if (host.endsWith(".github.io")) {
+    owner = host.slice(0, -".github.io".length);
+   }
+   const segments = String(pathname || "")
+    .split("/")
+    .map(function (s) {
+     return s.trim();
+    })
+    .filter(Boolean);
+   let repo = "";
+   if (segments.length > 0 && !/\.html?$/i.test(segments[0])) {
+    repo = segments[0];
+   }
+   return { owner: owner, repo: repo };
+  }
+
+  function extractBase64FromDataUrl(src) {
+   const raw = String(src || "").trim();
+   if (!/^data:image\//i.test(raw)) return null;
+   const commaIdx = raw.indexOf(",");
+   if (commaIdx === -1) return null;
+   const b64 = raw.slice(commaIdx + 1).replace(/\s+/g, "");
+   return b64 || null;
+  }
+
+  function encodeUtf8ToBase64(str) {
+   const bytes = new TextEncoder().encode(String(str == null ? "" : str));
+   let binary = "";
+   const chunkSize = 0x8000;
+   for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+   }
+   return btoa(binary);
+  }
+
+  function buildGitHubImagePath(slug, index, timestamp) {
+   const cleanSlug = slugify(slug || "produit");
+   const idx = typeof index === "number" && index >= 0 ? index : 0;
+   const ts = timestamp || Date.now();
+   return "images/" + cleanSlug + "-" + idx + "-" + ts + ".jpg";
+  }
+
+  function formatGitHubApiError(status, apiMessage, contextLabel) {
+   const detail = apiMessage ? " (" + apiMessage + ")" : "";
+   if (status === 401) {
+    return "Token GitHub invalide ou expiré. Vérifiez votre « Mon Token secret GitHub »." + detail;
+   }
+   if (status === 403) {
+    return "Accès refusé par GitHub : vérifiez que votre Token a bien le droit d'écriture (Contents: Read and write)." + detail;
+   }
+   if (status === 404) {
+    return "Dépôt ou propriétaire introuvable sur GitHub (" + (contextLabel || "owner/repo") + "). Vérifiez ces deux champs et les permissions du Token." + detail;
+   }
+   if (status === 409 || status === 422) {
+    return "Conflit de version sur GitHub lors de la mise à jour. Réessayez dans quelques secondes." + detail;
+   }
+   return "Erreur GitHub (" + status + ")" + detail;
+  }
+
+  async function publishToGitHubSequential(options) {
+   const owner = String(options.owner || "").trim();
+   const repo = String(options.repo || "").trim();
+   const token = String(options.token || "").trim();
+   const config = options.config || {};
+   const products = Array.isArray(options.products) ? options.products : [];
+   const fetchFn = options.fetchImpl || fetch;
+   const nowFn = options.nowFn || Date.now;
+   const onProgress = typeof options.onProgress === "function" ? options.onProgress : function () {};
+
+   if (!owner) throw new Error("Veuillez entrer le Propriétaire GitHub.");
+   if (!repo) throw new Error("Veuillez entrer le Nom du dépôt GitHub.");
+   if (!token) throw new Error("Veuillez coller votre Token secret GitHub (github_pat_...).");
+
+   const headers = {
+    Authorization: "Bearer " + token,
+    Accept: "application/vnd.github+json",
+    "Content-Type": "application/json",
+    "X-GitHub-Api-Version": "2022-11-28",
+   };
+
+   function buildContentsUrl(filePath) {
+    const encodedPath = String(filePath)
+     .split("/")
+     .filter(Boolean)
+     .map(encodeURIComponent)
+     .join("/");
+    return (
+     "https://api.github.com/repos/" +
+     encodeURIComponent(owner) +
+     "/" +
+     encodeURIComponent(repo) +
+     "/contents/" +
+     encodedPath
+    );
+   }
+
+   async function readApiErrorMessage(res) {
+    try {
+     const data = await res.json();
+     return data && data.message ? String(data.message) : "";
+    } catch (e) {
+     return "";
+    }
+   }
+
+   // Étape A : compter puis envoyer chaque image data:image/ séquentiellement
+   const pendingUploads = [];
+   for (let pIdx = 0; pIdx < products.length; pIdx++) {
+    const prod = products[pIdx];
+    const imgs = Array.isArray(prod.images) ? prod.images : [];
+    for (let iIdx = 0; iIdx < imgs.length; iIdx++) {
+     const b64 = extractBase64FromDataUrl(imgs[iIdx]);
+     if (b64) {
+      pendingUploads.push({
+       prodIndex: pIdx,
+       imgIndex: iIdx,
+       slug: prod.id || prod.title || "produit",
+       base64: b64,
+      });
+     }
+    }
+   }
+
+   let lastTs = 0;
+   for (let u = 0; u < pendingUploads.length; u++) {
+    const item = pendingUploads[u];
+    const rawTs = Number(nowFn()) || Date.now();
+    const ts = rawTs <= lastTs ? lastTs + 1 : rawTs;
+    lastTs = ts;
+
+    const imagePath = buildGitHubImagePath(item.slug, item.imgIndex, ts);
+    onProgress("⏳ Envoi des photos... (" + (u + 1) + "/" + pendingUploads.length + ")");
+
+    const putImgRes = await fetchFn(buildContentsUrl(imagePath), {
+     method: "PUT",
+     headers: headers,
+     body: JSON.stringify({
+      message: "Ajout photo " + imagePath,
+      content: item.base64,
+     }),
+    });
+
+    if (!putImgRes.ok) {
+     const errMsg = await readApiErrorMessage(putImgRes);
+     throw new Error(formatGitHubApiError(putImgRes.status, errMsg, owner + "/" + repo));
+    }
+
+    products[item.prodIndex].images[item.imgIndex] = imagePath;
+    if (typeof options.onImageReplaced === "function") {
+     options.onImageReplaced(products[item.prodIndex], item.imgIndex, imagePath);
+    }
+   }
+
+   // Étape B : GET (cache: 'no-store') sur produits.js pour récupérer le sha s'il existe
+   onProgress("⏳ Mise à jour du site...");
+   const dataFileUrl = buildContentsUrl("produits.js");
+   const getRes = await fetchFn(dataFileUrl, {
+    method: "GET",
+    headers: {
+     Authorization: "Bearer " + token,
+     Accept: "application/vnd.github+json",
+     "X-GitHub-Api-Version": "2022-11-28",
+    },
+    cache: "no-store",
+   });
+
+   let existingSha = "";
+   if (getRes.status === 200) {
+    const meta = await getRes.json();
+    existingSha = meta && meta.sha ? String(meta.sha) : "";
+   } else if (getRes.status !== 404) {
+    const errMsg = await readApiErrorMessage(getRes);
+    throw new Error(formatGitHubApiError(getRes.status, errMsg, owner + "/" + repo));
+   }
+
+   // Étape C : Générer produits.js, encoder UTF-8 -> Base64, et envoyer via PUT
+   const jsContent = generateProduitsJsContent(config, products);
+   const putBody = {
+    message: "Mise à jour du site via Studio Admin",
+    content: encodeUtf8ToBase64(jsContent),
+   };
+   if (existingSha) {
+    putBody.sha = existingSha;
+   }
+
+   const putDataRes = await fetchFn(dataFileUrl, {
+    method: "PUT",
+    headers: headers,
+    body: JSON.stringify(putBody),
+   });
+
+   if (!putDataRes.ok) {
+    const errMsg = await readApiErrorMessage(putDataRes);
+    throw new Error(formatGitHubApiError(putDataRes.status, errMsg, owner + "/" + repo));
+   }
+
+   // Étape D : Succès
+   onProgress("✅ En ligne dans ~45 secondes !");
+   return { uploadedImages: pendingUploads.length, created: !existingSha };
   }
 
   // -------------------------------------------------------------------
@@ -2130,6 +2429,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    renderAdminProductPills();
    populateAdminProductForm();
    populateAdminSiteForm();
+   populateGitHubConnForm();
   }
 
   function renderAdminProductPills() {
@@ -2535,6 +2835,68 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    }, 1000);
   }
 
+  function loadGitHubConn() {
+   const defaults = detectGitHubDefaults(
+    window.location && window.location.hostname,
+    window.location && window.location.pathname
+   );
+   let saved = {};
+   try {
+    const raw = localStorage.getItem(GH_CONN_KEY);
+    if (raw) saved = JSON.parse(raw) || {};
+   } catch (e) {
+    saved = {};
+   }
+   return {
+    owner: saved.owner != null && String(saved.owner).trim() !== "" ? String(saved.owner) : defaults.owner,
+    repo: saved.repo != null && String(saved.repo).trim() !== "" ? String(saved.repo) : defaults.repo,
+    token: saved.token ? String(saved.token) : "",
+   };
+  }
+
+  function saveGitHubConnFromInputs() {
+   const ownerEl = document.getElementById("ghOwnerInput");
+   const repoEl = document.getElementById("ghRepoInput");
+   const tokenEl = document.getElementById("ghTokenInput");
+   const data = {
+    owner: ownerEl ? ownerEl.value.trim() : "",
+    repo: repoEl ? repoEl.value.trim() : "",
+    token: tokenEl ? tokenEl.value.trim() : "",
+   };
+   try {
+    localStorage.setItem(GH_CONN_KEY, JSON.stringify(data));
+   } catch (e) {
+    // Ignore storage quota error
+   }
+   return data;
+  }
+
+  function populateGitHubConnForm() {
+   const conn = loadGitHubConn();
+   const ownerEl = document.getElementById("ghOwnerInput");
+   const repoEl = document.getElementById("ghRepoInput");
+   const tokenEl = document.getElementById("ghTokenInput");
+   if (ownerEl) ownerEl.value = conn.owner;
+   if (repoEl) repoEl.value = conn.repo;
+   if (tokenEl) tokenEl.value = conn.token;
+  }
+
+  function setGitHubPublishStatus(type, msg) {
+   const box = document.getElementById("githubPublishStatus");
+   if (!box) return;
+   box.className = "github-status-box";
+   if (!msg) {
+    box.classList.add("hidden");
+    box.textContent = "";
+    return;
+   }
+   box.classList.remove("hidden");
+   if (type === "progress") box.classList.add("is-progress");
+   else if (type === "success") box.classList.add("is-success");
+   else if (type === "error") box.classList.add("is-error");
+   box.textContent = msg;
+  }
+
   // -------------------------------------------------------------------
   // 8. HASH ROUTING & EVENT WIRING
   // -------------------------------------------------------------------
@@ -2647,6 +3009,14 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    document.getElementById("adminLockBtn").addEventListener("click", function () {
     state.adminUnlocked = false;
     closeAdminStudio();
+   });
+
+   document.getElementById("toggleAdminPinBtn").addEventListener("click", function () {
+    const input = document.getElementById("adminPinInput");
+    const isPassword = input.type === "password";
+    input.type = isPassword ? "text" : "password";
+    this.textContent = isPassword ? "🙈" : "👁️";
+    input.focus();
    });
 
    document.getElementById("adminPinForm").addEventListener("submit", function (e) {
@@ -3004,6 +3374,74 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     renderProductGrid();
     renderAdminWorkspace();
     showToast("↺ Brouillon réinitialisé à produits.js");
+   });
+
+   // Connexion GitHub (sauvegardée uniquement dans localStorage)
+   ["ghOwnerInput", "ghRepoInput", "ghTokenInput"].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) {
+     el.addEventListener("input", saveGitHubConnFromInputs);
+    }
+   });
+
+   const toggleGhTokenBtn = document.getElementById("toggleGhTokenBtn");
+   if (toggleGhTokenBtn) {
+    toggleGhTokenBtn.addEventListener("click", function () {
+     const input = document.getElementById("ghTokenInput");
+     const isPassword = input.type === "password";
+     input.type = isPassword ? "text" : "password";
+     this.textContent = isPassword ? "🙈" : "👁️";
+    });
+   }
+
+   document.getElementById("publishGithubBtn").addEventListener("click", async function () {
+    const btn = this;
+    if (btn.disabled) return;
+    readAdminProductFormIntoState();
+    const conn = saveGitHubConnFromInputs();
+
+    btn.disabled = true;
+    const originalLabel = btn.textContent;
+    btn.textContent = "⏳ Publication en cours...";
+    setGitHubPublishStatus("progress", "⏳ Préparation de la publication...");
+
+    try {
+     await publishToGitHubSequential({
+      owner: conn.owner,
+      repo: conn.repo,
+      token: conn.token,
+      config: state.config,
+      products: state.products,
+      onProgress: function (msg) {
+       setGitHubPublishStatus("progress", msg);
+      },
+      onImageReplaced: function (prod) {
+       saveDraft();
+       if (state.editingProductId === prod.id) {
+        document.getElementById("prodImages").value = formatExternalUrlsForInput(prod.images);
+        renderUploadChips(prod);
+        updateAdminPhotoPreview();
+       }
+       renderProductGrid();
+       if (state.selectedProductId === prod.id) {
+        renderProductDetail(prod);
+       }
+      },
+     });
+     setGitHubPublishStatus("success", "✅ En ligne dans ~45 secondes !");
+     showToast("✅ Site publié en direct sur GitHub !");
+    } catch (err) {
+     const rawMsg = err && err.message ? err.message : "Erreur lors de la publication.";
+     const friendlyMsg =
+      rawMsg === "Failed to fetch"
+       ? "Erreur réseau : impossible de joindre GitHub. Vérifiez votre connexion."
+       : rawMsg;
+     setGitHubPublishStatus("error", "❌ " + friendlyMsg);
+     showToast("❌ Échec de publication GitHub");
+    } finally {
+     btn.disabled = false;
+     btn.textContent = originalLabel;
+    }
    });
 
    // Download & Copy produits.js

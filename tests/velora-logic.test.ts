@@ -5,7 +5,10 @@ import path from 'node:path';
 import vm from 'node:vm';
 
 function extractFunction(html: string, name: string): string {
-  const start = html.indexOf(`function ${name}(`);
+  const asyncMarker = `async function ${name}(`;
+  const syncMarker = `function ${name}(`;
+  let start = html.indexOf(asyncMarker);
+  if (start === -1) start = html.indexOf(syncMarker);
   assert.ok(start !== -1, `Could not find function ${name} in index.html`);
   let depth = 0;
   let inBrace = false;
@@ -46,10 +49,21 @@ function loadIndexHelpers() {
     extractFunction(indexHtml, 'parseImagesCsv'),
     extractFunction(indexHtml, 'mergeExternalImageUrls'),
     extractFunction(indexHtml, 'generateProduitsJsContent'),
-    'module.exports = { clampNum, normalizePhotoStyle, sanitizeUrl, slugify, buildShortSlug, normalizeSiteBaseUrl, splitTips, parseFeaturesInput, parseVideoSource, buildSharpnessKernel, buildPhotoFilterCss, buildPinterestProductUrl, formatExternalUrlsForInput, parseImagesCsv, mergeExternalImageUrls, generateProduitsJsContent };',
+    extractFunction(indexHtml, 'detectGitHubDefaults'),
+    extractFunction(indexHtml, 'extractBase64FromDataUrl'),
+    extractFunction(indexHtml, 'encodeUtf8ToBase64'),
+    extractFunction(indexHtml, 'buildGitHubImagePath'),
+    extractFunction(indexHtml, 'formatGitHubApiError'),
+    extractFunction(indexHtml, 'publishToGitHubSequential'),
+    'module.exports = { clampNum, normalizePhotoStyle, sanitizeUrl, slugify, buildShortSlug, normalizeSiteBaseUrl, splitTips, parseFeaturesInput, parseVideoSource, buildSharpnessKernel, buildPhotoFilterCss, buildPinterestProductUrl, formatExternalUrlsForInput, parseImagesCsv, mergeExternalImageUrls, generateProduitsJsContent, detectGitHubDefaults, extractBase64FromDataUrl, encodeUtf8ToBase64, buildGitHubImagePath, formatGitHubApiError, publishToGitHubSequential };',
   ].join('\n\n');
 
-  const sandbox: Record<string, unknown> = { module: { exports: {} } };
+  const sandbox: Record<string, unknown> = {
+    module: { exports: {} },
+    TextEncoder,
+    btoa: (str: string) => Buffer.from(str, 'binary').toString('base64'),
+    fetch: () => Promise.reject(new Error('unexpected global fetch')),
+  };
   vm.runInNewContext(snippet, sandbox);
   return sandbox.module as { exports: Record<string, (...args: unknown[]) => unknown> };
 }
@@ -232,4 +246,182 @@ test('parseFeaturesInput handles Why People Love It reasons cleanly', () => {
     ['Reason A', 'Reason B']
   );
 });
+
+test('detectGitHubDefaults, extractBase64FromDataUrl, and encodeUtf8ToBase64 work accurately', () => {
+  const { detectGitHubDefaults, extractBase64FromDataUrl, encodeUtf8ToBase64, buildGitHubImagePath } =
+    loadIndexHelpers().exports;
+
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(detectGitHubDefaults('CozyAura.github.io', '/velora-finds/index.html'))),
+    { owner: 'cozyaura', repo: 'velora-finds' }
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(detectGitHubDefaults('cozyaura.github.io', '/index.html'))),
+    { owner: 'cozyaura', repo: '' }
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(detectGitHubDefaults('localhost', '/'))),
+    { owner: '', repo: '' }
+  );
+
+  assert.equal(extractBase64FromDataUrl('data:image/jpeg;base64,/9j/4AAQ=='), '/9j/4AAQ==');
+  assert.equal(extractBase64FromDataUrl('images/lamp-0-123.jpg'), null);
+  assert.equal(extractBase64FromDataUrl('https://cdn.example.com/photo.jpg'), null);
+
+  assert.equal(
+    buildGitHubImagePath('Mini Pocket Printer', 0, 1700000000000),
+    'images/mini-pocket-printer-0-1700000000000.jpg'
+  );
+
+  const sampleUtf8 = 'VÉLORA FINDS — 🔥 Édition Cozy & Café';
+  const encoded = encodeUtf8ToBase64(sampleUtf8) as string;
+  assert.equal(Buffer.from(encoded, 'base64').toString('utf8'), sampleUtf8);
+});
+
+test('publishToGitHubSequential uploads images sequentially, replaces DataURLs, handles 200 & 404 sha, and never leaks token', async () => {
+  const { publishToGitHubSequential } = loadIndexHelpers().exports;
+
+  const calls: Array<{ url: string; method: string; cache?: string; headers: Record<string, string>; body?: Record<string, unknown> }> = [];
+  let inFlight = 0;
+  let maxInFlight = 0;
+
+  const fakeFetch = async (url: string, init: Record<string, unknown>) => {
+    inFlight++;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    await new Promise((r) => setTimeout(r, 5));
+    const parsedBody = init.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
+    calls.push({
+      url,
+      method: String(init.method || 'GET'),
+      cache: init.cache ? String(init.cache) : undefined,
+      headers: (init.headers || {}) as Record<string, string>,
+      body: parsedBody,
+    });
+    inFlight--;
+
+    if (url.endsWith('/contents/produits.js') && init.method === 'GET') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ sha: 'sha-existing-123' }),
+      };
+    }
+    return {
+      ok: true,
+      status: 201,
+      json: async () => ({ content: { sha: 'new-sha' } }),
+    };
+  };
+
+  let tick = 1700000001000;
+  const progresses: string[] = [];
+  const products = [
+    {
+      id: 'cozy-lamp',
+      title: 'Cozy Lamp',
+      price: '$24.00',
+      category: 'Cozy Lighting',
+      rating: '4.9',
+      isBestSeller: true,
+      badge: '🔥 Best Seller',
+      shortDesc: 'Warm light.',
+      images: ['data:image/jpeg;base64,QUJDRA==', 'images/already-uploaded.jpg', 'data:image/png;base64,RVJHSA=='],
+      photoStyle: { brightness: 105, contrast: 105, saturate: 110, sharpness: 20 },
+      videoUrl: '',
+      problemSolved: 'Dark room.',
+      whyBuy: 'Soft glow.',
+      tips: 'Dim before sleep.',
+      features: ['Cordless'],
+      bestFor: 'Bedrooms',
+      verdict: 'Worth it.',
+      link: 'https://example.com/lamp',
+    },
+  ];
+
+  const result = (await publishToGitHubSequential({
+    owner: 'myuser',
+    repo: 'velora-site',
+    token: 'github_pat_SUPER_SECRET_123',
+    config: { brandName: 'VÉLORA FINDS', tagline: 'Cozy', email: 'a@b.com', theme: 'cream-terracotta', adminPin: '2027' },
+    products,
+    fetchImpl: fakeFetch,
+    nowFn: () => ++tick,
+    onProgress: (m: string) => progresses.push(m),
+  })) as Record<string, unknown>;
+
+  // Strictly sequential: never more than 1 in-flight request
+  assert.equal(maxInFlight, 1);
+  assert.equal(calls.length, 4); // 2 images + 1 GET produits.js + 1 PUT produits.js
+  assert.equal(result.uploadedImages, 2);
+  assert.equal(result.created, false);
+
+  // Step A checks
+  assert.equal(calls[0].method, 'PUT');
+  assert.equal(
+    calls[0].url,
+    'https://api.github.com/repos/myuser/velora-site/contents/images/cozy-lamp-0-1700000001001.jpg'
+  );
+  assert.equal(calls[0].headers.Authorization, 'Bearer github_pat_SUPER_SECRET_123');
+  assert.equal(calls[0].body?.content, 'QUJDRA==');
+
+  assert.equal(calls[1].method, 'PUT');
+  assert.equal(
+    calls[1].url,
+    'https://api.github.com/repos/myuser/velora-site/contents/images/cozy-lamp-2-1700000001002.jpg'
+  );
+  assert.equal(calls[1].body?.content, 'RVJHSA==');
+
+  // Product images replaced with relative paths while keeping existing image untouched
+  assert.deepEqual(products[0].images, [
+    'images/cozy-lamp-0-1700000001001.jpg',
+    'images/already-uploaded.jpg',
+    'images/cozy-lamp-2-1700000001002.jpg',
+  ]);
+
+  // Step B check: GET with cache: 'no-store'
+  assert.equal(calls[2].method, 'GET');
+  assert.equal(calls[2].cache, 'no-store');
+  assert.equal(calls[2].url, 'https://api.github.com/repos/myuser/velora-site/contents/produits.js');
+
+  // Step C check: PUT produits.js with sha and UTF-8 JSON without secret token
+  assert.equal(calls[3].method, 'PUT');
+  assert.equal(calls[3].body?.sha, 'sha-existing-123');
+  const decodedJs = Buffer.from(String(calls[3].body?.content), 'base64').toString('utf8');
+  assert.ok(decodedJs.includes('"images/cozy-lamp-0-1700000001001.jpg"'));
+  assert.ok(!decodedJs.includes('data:image/'));
+  assert.ok(!decodedJs.includes('github_pat_SUPER_SECRET_123'));
+
+  // Step D progress messages
+  assert.ok(progresses.some((p) => p.includes('Envoi des photos')));
+  assert.ok(progresses.some((p) => p.includes('Mise à jour du site')));
+  assert.equal(progresses[progresses.length - 1], '✅ En ligne dans ~45 secondes !');
+
+  // 404 on GET produits.js omits sha so PUT creates file automatically
+  const calls404: Array<Record<string, unknown>> = [];
+  const fetch404 = async (url: string, init: Record<string, unknown>) => {
+    calls404.push({ url, method: init.method, body: init.body ? JSON.parse(String(init.body)) : undefined });
+    if (init.method === 'GET') return { ok: false, status: 404, json: async () => ({ message: 'Not Found' }) };
+    return { ok: true, status: 201, json: async () => ({}) };
+  };
+  const res404 = (await publishToGitHubSequential({
+    owner: 'myuser',
+    repo: 'new-repo',
+    token: 'tok',
+    config: { brandName: 'VÉLORA FINDS' },
+    products: [],
+    fetchImpl: fetch404,
+  })) as Record<string, unknown>;
+  assert.equal(res404.created, true);
+  assert.equal((calls404[1].body as Record<string, unknown>).sha, undefined);
+});
+
+test('index.html preserves relative src="produits.js" and full keyboard inputmode="text" on admin unlock', () => {
+  assert.ok(indexHtml.includes('<script src="produits.js"></script>'));
+  assert.ok(!indexHtml.includes('<script src="/produits.js"></script>'));
+  assert.ok(indexHtml.includes('id="adminPinInput"'));
+  const pinSnippet = indexHtml.slice(indexHtml.indexOf('id="adminPinInput"'), indexHtml.indexOf('id="adminPinInput"') + 220);
+  assert.ok(pinSnippet.includes('inputmode="text"'));
+  assert.ok(!pinSnippet.includes('inputmode="numeric"'));
+});
+
 
