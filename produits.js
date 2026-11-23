@@ -28,7 +28,7 @@ window.PRODUCTS = [
       "brightness": 105,
       "contrast": 105,
       "saturate": 110,
-      "sharpness": 20
+      "sharpness": 71
     },
     "videoUrl": "",
     "problemSolved": "Describe the everyday frustration this product solves.",
