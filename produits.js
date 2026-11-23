@@ -13,7 +13,7 @@ window.SITE_CONFIG = {
 
 window.PRODUCTS = [
   {
-    "id": "new-find-1",
+    "id": "bottles",
     "title": "New Cozy Find",
     "price": "$19.90",
     "category": "Smart Home",
@@ -22,7 +22,7 @@ window.PRODUCTS = [
     "badge": "New Find",
     "shortDesc": "Thoughtful everyday upgrade designed to simplify your daily routine.",
     "images": [
-      "images/new-find-1-0-1795472017954.jpg"
+      "images/bottles-0-1795472365184.jpg"
     ],
     "photoStyle": {
       "brightness": 105,
