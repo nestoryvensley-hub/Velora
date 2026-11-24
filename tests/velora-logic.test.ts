@@ -49,19 +49,27 @@ function loadIndexHelpers() {
     extractFunction(indexHtml, 'parseImagesCsv'),
     extractFunction(indexHtml, 'mergeExternalImageUrls'),
     extractFunction(indexHtml, 'generateProduitsJsContent'),
+    extractFunction(indexHtml, 'normalizeProductImages'),
     extractFunction(indexHtml, 'detectGitHubDefaults'),
     extractFunction(indexHtml, 'extractBase64FromDataUrl'),
     extractFunction(indexHtml, 'encodeUtf8ToBase64'),
+    extractFunction(indexHtml, 'decodeBase64ToUtf8'),
+    extractFunction(indexHtml, 'extractJsonArrayAfterMarker'),
+    extractFunction(indexHtml, 'parseProduitsJsData'),
+    extractFunction(indexHtml, 'mergeProductsPreservingExisting'),
     extractFunction(indexHtml, 'buildGitHubImagePath'),
     extractFunction(indexHtml, 'formatGitHubApiError'),
+    extractFunction(indexHtml, 'testGitHubConnection'),
     extractFunction(indexHtml, 'publishToGitHubSequential'),
-    'module.exports = { clampNum, normalizePhotoStyle, sanitizeUrl, slugify, buildShortSlug, normalizeSiteBaseUrl, splitTips, parseFeaturesInput, parseVideoSource, buildSharpnessKernel, buildPhotoFilterCss, buildPinterestProductUrl, formatExternalUrlsForInput, parseImagesCsv, mergeExternalImageUrls, generateProduitsJsContent, detectGitHubDefaults, extractBase64FromDataUrl, encodeUtf8ToBase64, buildGitHubImagePath, formatGitHubApiError, publishToGitHubSequential };',
+    'module.exports = { clampNum, normalizePhotoStyle, sanitizeUrl, slugify, buildShortSlug, normalizeSiteBaseUrl, splitTips, parseFeaturesInput, parseVideoSource, buildSharpnessKernel, buildPhotoFilterCss, buildPinterestProductUrl, formatExternalUrlsForInput, parseImagesCsv, mergeExternalImageUrls, generateProduitsJsContent, normalizeProductImages, detectGitHubDefaults, extractBase64FromDataUrl, encodeUtf8ToBase64, decodeBase64ToUtf8, extractJsonArrayAfterMarker, parseProduitsJsData, mergeProductsPreservingExisting, buildGitHubImagePath, formatGitHubApiError, testGitHubConnection, publishToGitHubSequential };',
   ].join('\n\n');
 
   const sandbox: Record<string, unknown> = {
     module: { exports: {} },
     TextEncoder,
+    TextDecoder,
     btoa: (str: string) => Buffer.from(str, 'binary').toString('base64'),
+    atob: (b64: string) => Buffer.from(b64, 'base64').toString('binary'),
     fetch: () => Promise.reject(new Error('unexpected global fetch')),
   };
   vm.runInNewContext(snippet, sandbox);
@@ -77,7 +85,11 @@ test('public/produits.js parses cleanly and defines required defaults', () => {
   assert.equal(cfg.tagline, 'Thoughtful, Cozy & Viral Finds — Curated to Brighten Everyday Life.');
   assert.equal(cfg.email, 'monemail@gmail.com');
   assert.equal(cfg.theme, 'cream-terracotta');
-  assert.equal(cfg.adminPin, '2027');
+  assert.ok(
+    (typeof cfg.adminPin === 'string' && cfg.adminPin.length > 0) ||
+      (typeof cfg.adminPassHash === 'string' && cfg.adminPassHash.startsWith('velora-v1$')),
+    'SITE_CONFIG should define adminPin or adminPassHash'
+  );
 
   const products = sandbox.window.PRODUCTS as Array<Record<string, unknown>>;
   assert.equal(products.length, 4);
@@ -372,7 +384,7 @@ test('publishToGitHubSequential uploads images sequentially, replaces DataURLs, 
   assert.equal(calls[1].body?.content, 'RVJHSA==');
 
   // Product images replaced with relative paths while keeping existing image untouched
-  assert.deepEqual(products[0].images, [
+  assert.deepEqual(Array.from(products[0].images as string[]), [
     'images/cozy-lamp-0-1700000001001.jpg',
     'images/already-uploaded.jpg',
     'images/cozy-lamp-2-1700000001002.jpg',
@@ -423,5 +435,127 @@ test('index.html preserves relative src="produits.js" and full keyboard inputmod
   assert.ok(pinSnippet.includes('inputmode="text"'));
   assert.ok(!pinSnippet.includes('inputmode="numeric"'));
 });
+
+test('testGitHubConnection validates token, repo, and write permissions accurately', async () => {
+  const { testGitHubConnection } = loadIndexHelpers().exports;
+
+  const okMsg = await testGitHubConnection({
+    owner: 'velora',
+    repo: 'shop',
+    token: 'github_pat_ok',
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ full_name: 'velora/shop', permissions: { pull: true, push: true } }),
+    }),
+  });
+  assert.equal(okMsg, '✅ Connexion réussie à velora/shop !');
+
+  await assert.rejects(
+    async () =>
+      await (testGitHubConnection({
+        owner: 'velora',
+        repo: 'shop',
+        token: 'bad',
+        fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({ message: 'Bad credentials' }) }),
+      }) as Promise<unknown>),
+    /401/
+  );
+
+  await assert.rejects(
+    async () =>
+      await (testGitHubConnection({
+        owner: 'velora',
+        repo: 'wrong-repo',
+        token: 'tok',
+        fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({ message: 'Not Found' }) }),
+      }) as Promise<unknown>),
+    /404/
+  );
+
+  await assert.rejects(
+    async () =>
+      await (testGitHubConnection({
+        owner: 'velora',
+        repo: 'shop',
+        token: 'readonly-tok',
+        fetchImpl: async () => ({
+          ok: true,
+          status: 200,
+          json: async () => ({ permissions: { pull: true, push: false } }),
+        }),
+      }) as Promise<unknown>),
+    /Contents: Read and write/
+  );
+});
+
+test('publishToGitHubSequential merges remote products without erasing old ones, respects explicit deletes, and aborts on image error', async () => {
+  const { publishToGitHubSequential, generateProduitsJsContent, encodeUtf8ToBase64, normalizeProductImages } =
+    loadIndexHelpers().exports;
+
+  assert.deepEqual(
+    Array.from(normalizeProductImages({ image: 'images/a.jpg', gallery: ['images/b.jpg', 'images/a.jpg'] }) as string[]),
+    ['images/a.jpg', 'images/b.jpg']
+  );
+
+  const remoteJs = generateProduitsJsContent(
+    { brandName: 'VÉLORA FINDS' },
+    [
+      { id: 'old-product-1', title: 'Old Product 1', images: ['images/old-1.jpg'] },
+      { id: 'old-deleted-2', title: 'Old Deleted 2', images: ['images/old-2.jpg'] },
+    ]
+  ) as string;
+  const remoteBase64 = encodeUtf8ToBase64(remoteJs) as string;
+
+  let putBodySaved: Record<string, unknown> | null = null;
+  const result = (await publishToGitHubSequential({
+    owner: 'velora',
+    repo: 'shop',
+    token: 'tok',
+    config: { brandName: 'VÉLORA FINDS' },
+    products: [{ id: 'new-product-3', title: 'New Product 3', images: ['data:image/jpeg;base64,QUJD'] }],
+    deletedIds: ['old-deleted-2'],
+    fetchImpl: async (url: string, init: Record<string, unknown>) => {
+      if (init.method === 'GET' && url.endsWith('/contents/produits.js')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ sha: 'sha-remote-77', content: remoteBase64 }),
+        };
+      }
+      if (init.method === 'PUT' && url.endsWith('/contents/produits.js')) {
+        putBodySaved = JSON.parse(String(init.body));
+      }
+      return { ok: true, status: 201, json: async () => ({}) };
+    },
+  })) as Record<string, unknown>;
+
+  assert.ok(putBodySaved);
+  const finalJs = Buffer.from(String((putBodySaved as Record<string, unknown>).content), 'base64').toString('utf8');
+  assert.ok(finalJs.includes('"new-product-3"'));
+  assert.ok(finalJs.includes('"old-product-1"'), 'Previously published remote product must be preserved');
+  assert.ok(!finalJs.includes('"old-deleted-2"'), 'Explicitly deleted product must remain removed');
+  assert.equal((result.products as Array<Record<string, unknown>>).length, 2);
+
+  // Abort on failed image PUT: produits.js must NEVER be fetched or updated
+  const abortedCalls: string[] = [];
+  await assert.rejects(
+    async () =>
+      await (publishToGitHubSequential({
+        owner: 'velora',
+        repo: 'shop',
+        token: 'tok',
+        config: { brandName: 'VÉLORA FINDS' },
+        products: [{ id: 'broken-img', title: 'Broken', images: ['data:image/jpeg;base64,QUJD'] }],
+        fetchImpl: async (url: string, init: Record<string, unknown>) => {
+          abortedCalls.push(String(init.method) + ' ' + url);
+          return { ok: false, status: 403, json: async () => ({ message: 'Resource not accessible by personal access token' }) };
+        },
+      }) as Promise<unknown>),
+    /Contents: Read and write/
+  );
+  assert.equal(abortedCalls.length, 1, 'Should stop immediately after image PUT error without updating produits.js');
+});
+
 
 

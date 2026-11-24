@@ -313,6 +313,8 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
 .github-status-box.is-success{background:var(--trust-soft);color:var(--trust);border-color:var(--sage-border)}
 .github-status-box.is-error{background:#fef3f2;color:#b42318;border-color:rgba(180,35,24,0.28)}
 .adm-btn:disabled{opacity:0.65;cursor:not-allowed;transform:none}
+.adm-btn-soft-green{background:#e6f4ea;color:#1e6b3a;border-color:rgba(30,107,58,0.28)}
+.adm-btn-soft-green:hover{background:#1e6b3a;color:#ffffff;border-color:#1e6b3a}
 .toast-msg{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:150;width:max-content;max-width:calc(100vw - 32px);text-align:center;background:var(--text);color:var(--surface);padding:12px 20px;border-radius:12px;font-size:14px;font-weight:700;box-shadow:var(--shadow-float-hover)}
 .publish-code-area{width:100%;min-height:180px;padding:12px;border-radius:12px;border:1px solid var(--border-strong);background:var(--bg);color:var(--text);font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:12px;margin-top:12px}
 .github-steps{padding:14px 16px;border-radius:12px;background:var(--trust-soft);color:var(--text);font-size:14px;font-weight:700;line-height:1.5}
@@ -1020,6 +1022,12 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
        </span>
       </div>
      </div>
+     <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center">
+      <button type="button" class="adm-btn adm-btn-soft-green" id="testGithubConnBtn">
+       🔌 Tester et Enregistrer la connexion GitHub
+      </button>
+     </div>
+     <div id="githubTestStatus" class="github-status-box hidden" role="status" aria-live="polite"></div>
     </div>
 
     <div class="publish-footer-actions">
@@ -1375,7 +1383,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     isBestSeller: Boolean(p.isBestSeller),
     badge: String(p.badge || ""),
     shortDesc: String(p.shortDesc || ""),
-    images: Array.isArray(p.images) ? p.images.filter(Boolean) : [],
+    images: normalizeProductImages(p),
     photoStyle: normalizePhotoStyle(p.photoStyle),
     videoUrl: String(p.videoUrl != null ? p.videoUrl : p.video || ""),
     problemSolved: String(p.problemSolved || ""),
@@ -1399,6 +1407,26 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     JSON.stringify(cleanProducts, null, 2) +
     ";\n"
    );
+  }
+
+  function normalizeProductImages(p) {
+   const list = [];
+   function pushUnique(val) {
+    const clean = String(val || "").trim();
+    if (clean && list.indexOf(clean) === -1) {
+     list.push(clean);
+    }
+   }
+   if (p && Array.isArray(p.images)) {
+    p.images.forEach(pushUnique);
+   }
+   if (p && p.image) {
+    pushUnique(p.image);
+   }
+   if (p && Array.isArray(p.gallery)) {
+    p.gallery.forEach(pushUnique);
+   }
+   return list;
   }
 
   function detectGitHubDefaults(hostname, pathname) {
@@ -1439,6 +1467,95 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    return btoa(binary);
   }
 
+  function decodeBase64ToUtf8(b64) {
+   const clean = String(b64 || "").replace(/\s+/g, "");
+   if (!clean) return "";
+   const binary = atob(clean);
+   const bytes = new Uint8Array(binary.length);
+   for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+   }
+   return new TextDecoder().decode(bytes);
+  }
+
+  function extractJsonArrayAfterMarker(text, markerRegex) {
+   const match = markerRegex.exec(String(text || ""));
+   if (!match) return null;
+   let i = match.index + match[0].length;
+   while (i < text.length && /\s/.test(text[i])) i++;
+   if (text[i] !== "[") return null;
+
+   let depth = 0;
+   let inString = false;
+   let escaped = false;
+   for (let j = i; j < text.length; j++) {
+    const ch = text[j];
+    if (inString) {
+     if (escaped) {
+      escaped = false;
+     } else if (ch === "\\") {
+      escaped = true;
+     } else if (ch === '"') {
+      inString = false;
+     }
+     continue;
+    }
+    if (ch === '"') {
+     inString = true;
+    } else if (ch === "[") {
+     depth++;
+    } else if (ch === "]") {
+     depth--;
+     if (depth === 0) {
+      return text.slice(i, j + 1);
+     }
+    }
+   }
+   return null;
+  }
+
+  function parseProduitsJsData(jsText) {
+   const arrSlice = extractJsonArrayAfterMarker(
+    jsText,
+    /(?:window\.)?PRODUCTS\s*=\s*/
+   );
+   if (!arrSlice) return [];
+   try {
+    const parsed = JSON.parse(arrSlice);
+    return Array.isArray(parsed) ? parsed : [];
+   } catch (e) {
+    return [];
+   }
+  }
+
+  function mergeProductsPreservingExisting(remoteProducts, localProducts, deletedIds) {
+   const deletedSet = new Set(
+    (Array.isArray(deletedIds) ? deletedIds : []).map(function (id) {
+     return slugify(id);
+    })
+   );
+   const result = [];
+   const seenIds = new Set();
+
+   (Array.isArray(localProducts) ? localProducts : []).forEach(function (prod) {
+    if (!prod || typeof prod !== "object") return;
+    const copy = Object.assign({}, prod, { images: normalizeProductImages(prod) });
+    const key = slugify(copy.id || copy.title);
+    if (key) seenIds.add(key);
+    result.push(copy);
+   });
+
+   (Array.isArray(remoteProducts) ? remoteProducts : []).forEach(function (prod) {
+    if (!prod || typeof prod !== "object") return;
+    const key = slugify(prod.id || prod.title);
+    if (!key || seenIds.has(key) || deletedSet.has(key)) return;
+    seenIds.add(key);
+    result.push(Object.assign({}, prod, { images: normalizeProductImages(prod) }));
+   });
+
+   return result;
+  }
+
   function buildGitHubImagePath(slug, index, timestamp) {
    const cleanSlug = slugify(slug || "produit");
    const idx = typeof index === "number" && index >= 0 ? index : 0;
@@ -1449,18 +1566,84 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
   function formatGitHubApiError(status, apiMessage, contextLabel) {
    const detail = apiMessage ? " (" + apiMessage + ")" : "";
    if (status === 401) {
-    return "Token GitHub invalide ou expiré. Vérifiez votre « Mon Token secret GitHub »." + detail;
+    return "Token GitHub invalide ou expiré (401). Vérifiez votre « Mon Token secret GitHub »." + detail;
    }
    if (status === 403) {
-    return "Accès refusé par GitHub : vérifiez que votre Token a bien le droit d'écriture (Contents: Read and write)." + detail;
+    return "Accès refusé par GitHub (403) : il manque probablement le droit d'écriture « Contents: Read and write » sur ce Token." + detail;
    }
    if (status === 404) {
-    return "Dépôt ou propriétaire introuvable sur GitHub (" + (contextLabel || "owner/repo") + "). Vérifiez ces deux champs et les permissions du Token." + detail;
+    return "Dépôt ou propriétaire introuvable sur GitHub (404 : " + (contextLabel || "owner/repo") + "). Vérifiez le Propriétaire, le Nom du dépôt et les droits du Token." + detail;
    }
    if (status === 409 || status === 422) {
     return "Conflit de version sur GitHub lors de la mise à jour. Réessayez dans quelques secondes." + detail;
    }
    return "Erreur GitHub (" + status + ")" + detail;
+  }
+
+  async function testGitHubConnection(options) {
+   const owner = String(options.owner || "").trim();
+   const repo = String(options.repo || "").trim();
+   const token = String(options.token || "").trim();
+   const fetchFn = options.fetchImpl || fetch;
+
+   if (!owner) throw new Error("Veuillez entrer le Propriétaire GitHub.");
+   if (!repo) throw new Error("Veuillez entrer le Nom du dépôt GitHub.");
+   if (!token) throw new Error("Veuillez coller votre Token secret GitHub (github_pat_...).");
+
+   const repoUrl =
+    "https://api.github.com/repos/" +
+    encodeURIComponent(owner) +
+    "/" +
+    encodeURIComponent(repo);
+
+   const res = await fetchFn(repoUrl, {
+    method: "GET",
+    headers: {
+     Authorization: "Bearer " + token,
+     Accept: "application/vnd.github+json",
+     "X-GitHub-Api-Version": "2022-11-28",
+    },
+    cache: "no-store",
+   });
+
+   if (!res.ok) {
+    let apiMsg = "";
+    try {
+     const errData = await res.json();
+     apiMsg = errData && errData.message ? String(errData.message) : "";
+    } catch (e) {
+     apiMsg = "";
+    }
+    if (res.status === 401) {
+     throw new Error("Token GitHub invalide ou expiré (401).");
+    }
+    if (res.status === 404) {
+     throw new Error(
+      "Mauvais nom de dépôt ou dépôt inaccessible (404) pour « " + owner + "/" + repo + " »."
+     );
+    }
+    if (res.status === 403) {
+     throw new Error(
+      "Accès refusé (403) : il manque le droit d'écriture « Contents: Read and write » sur votre Token."
+     );
+    }
+    throw new Error(formatGitHubApiError(res.status, apiMsg, owner + "/" + repo));
+   }
+
+   let repoData = null;
+   try {
+    repoData = await res.json();
+   } catch (e) {
+    repoData = null;
+   }
+
+   if (repoData && repoData.permissions && repoData.permissions.push === false) {
+    throw new Error(
+     "Votre Token peut lire ce dépôt mais il manque le droit d'écriture « Contents: Read and write »."
+    );
+   }
+
+   return "✅ Connexion réussie à " + owner + "/" + repo + " !";
   }
 
   async function publishToGitHubSequential(options) {
@@ -1469,6 +1652,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    const token = String(options.token || "").trim();
    const config = options.config || {};
    const products = Array.isArray(options.products) ? options.products : [];
+   const deletedIds = Array.isArray(options.deletedIds) ? options.deletedIds : [];
    const fetchFn = options.fetchImpl || fetch;
    const nowFn = options.nowFn || Date.now;
    const onProgress = typeof options.onProgress === "function" ? options.onProgress : function () {};
@@ -1509,19 +1693,21 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     }
    }
 
-   // Étape A : compter puis envoyer chaque image data:image/ séquentiellement
+   // Étape A : normaliser et envoyer chaque image data:image/ séquentiellement en vrai fichier .jpg
    const pendingUploads = [];
    for (let pIdx = 0; pIdx < products.length; pIdx++) {
     const prod = products[pIdx];
-    const imgs = Array.isArray(prod.images) ? prod.images : [];
-    for (let iIdx = 0; iIdx < imgs.length; iIdx++) {
-     const b64 = extractBase64FromDataUrl(imgs[iIdx]);
+    prod.images = normalizeProductImages(prod);
+    for (let iIdx = 0; iIdx < prod.images.length; iIdx++) {
+     const originalDataUrl = prod.images[iIdx];
+     const b64 = extractBase64FromDataUrl(originalDataUrl);
      if (b64) {
       pendingUploads.push({
        prodIndex: pIdx,
        imgIndex: iIdx,
        slug: prod.id || prod.title || "produit",
        base64: b64,
+       originalDataUrl: originalDataUrl,
       });
      }
     }
@@ -1552,12 +1738,19 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     }
 
     products[item.prodIndex].images[item.imgIndex] = imagePath;
+    if (products[item.prodIndex].image) {
+     delete products[item.prodIndex].image;
+    }
+    if (products[item.prodIndex].gallery) {
+     delete products[item.prodIndex].gallery;
+    }
     if (typeof options.onImageReplaced === "function") {
-     options.onImageReplaced(products[item.prodIndex], item.imgIndex, imagePath);
+     options.onImageReplaced(products[item.prodIndex], item.imgIndex, imagePath, item.originalDataUrl);
     }
    }
 
-   // Étape B : GET (cache: 'no-store') sur produits.js pour récupérer le sha s'il existe
+   // Étape B : GET (cache: 'no-store') sur produits.js après envoi des photos
+   // pour récupérer le sha ET fusionner avec les produits déjà publiés sur GitHub
    onProgress("⏳ Mise à jour du site...");
    const dataFileUrl = buildContentsUrl("produits.js");
    const getRes = await fetchFn(dataFileUrl, {
@@ -1571,16 +1764,23 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    });
 
    let existingSha = "";
+   let remoteProducts = [];
    if (getRes.status === 200) {
     const meta = await getRes.json();
     existingSha = meta && meta.sha ? String(meta.sha) : "";
+    if (meta && meta.content) {
+     const decodedRemote = decodeBase64ToUtf8(meta.content);
+     remoteProducts = parseProduitsJsData(decodedRemote);
+    }
    } else if (getRes.status !== 404) {
     const errMsg = await readApiErrorMessage(getRes);
     throw new Error(formatGitHubApiError(getRes.status, errMsg, owner + "/" + repo));
    }
 
-   // Étape C : Générer produits.js, encoder UTF-8 -> Base64, et envoyer via PUT
-   const jsContent = generateProduitsJsContent(config, products);
+   const mergedProducts = mergeProductsPreservingExisting(remoteProducts, products, deletedIds);
+
+   // Étape C : Générer produits.js avec la liste complète préservée, encoder UTF-8 -> Base64, et PUT
+   const jsContent = generateProduitsJsContent(config, mergedProducts);
    const putBody = {
     message: "Mise à jour du site via Studio Admin",
     content: encodeUtf8ToBase64(jsContent),
@@ -1602,7 +1802,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
 
    // Étape D : Succès
    onProgress("✅ En ligne dans ~45 secondes !");
-   return { uploadedImages: pendingUploads.length, created: !existingSha };
+   return { uploadedImages: pendingUploads.length, created: !existingSha, products: mergedProducts };
   }
 
   // -------------------------------------------------------------------
@@ -1619,7 +1819,9 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
 
   const baseConfig = Object.assign({}, fallbackConfig, window.SITE_CONFIG || {});
   const baseProducts = Array.isArray(window.PRODUCTS)
-   ? JSON.parse(JSON.stringify(window.PRODUCTS))
+   ? JSON.parse(JSON.stringify(window.PRODUCTS)).map(function (p) {
+     return Object.assign({}, p, { images: normalizeProductImages(p) });
+    })
    : [];
 
   function loadInitialState() {
@@ -1628,9 +1830,11 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     if (raw) {
     const parsed = JSON.parse(raw);
     if (parsed && parsed.config && Array.isArray(parsed.products)) {
+     const deletedIds = Array.isArray(parsed.deletedProductIds) ? parsed.deletedProductIds : [];
      return {
       config: Object.assign({}, fallbackConfig, parsed.config),
-      products: parsed.products,
+      products: mergeProductsPreservingExisting(baseProducts, parsed.products, deletedIds),
+      deletedProductIds: deletedIds,
      };
     }
     }
@@ -1640,14 +1844,17 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    return {
     config: JSON.parse(JSON.stringify(baseConfig)),
     products: JSON.parse(JSON.stringify(baseProducts)),
+    deletedProductIds: [],
    };
   }
 
   const initial = loadInitialState();
+  const uploadedPreviewCache = Object.create(null);
 
   const state = {
    config: initial.config,
    products: initial.products,
+   deletedProductIds: initial.deletedProductIds || [],
    activeCategory: "All",
    searchQuery: "",
    selectedProductId: null,
@@ -1665,6 +1872,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     JSON.stringify({
      config: state.config,
      products: state.products,
+     deletedProductIds: state.deletedProductIds || [],
     })
     );
     return true;
@@ -1810,14 +2018,21 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     );
    }
 
+   const cachedPreview = uploadedPreviewCache[safeSrc] || "";
+   const fallbackAttr = cachedPreview
+    ? ' data-local-fallback="' + escapeHtml(cachedPreview) + '"'
+    : "";
+
    return (
     '<img src="' +
     escapeHtml(safeSrc) +
     '" alt="' +
     escapeHtml(alt) +
-    '" referrerpolicy="no-referrer" style="filter: ' +
+    '"' +
+    fallbackAttr +
+    ' referrerpolicy="no-referrer" style="filter: ' +
     escapeHtml(filterCss) +
-    ';" onerror="this.style.display=\'none\'; this.nextElementSibling.classList.remove(\'hidden\');" />' +
+    ';" onerror="if(this.dataset.localFallback && !this.dataset.retried){this.dataset.retried=\'1\';this.src=this.dataset.localFallback;return;}this.style.display=\'none\'; this.nextElementSibling.classList.remove(\'hidden\');" />' +
     '<div class="img-fallback hidden">' +
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' +
     '<rect x="3" y="4" width="18" height="16" rx="3" />' +
@@ -1835,7 +2050,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    if (!slot) return;
    const featured =
     state.products.find(function (p) {
-     return p.isBestSeller && Array.isArray(p.images) && p.images.length > 0;
+     return p.isBestSeller && normalizeProductImages(p).length > 0;
     }) ||
     state.products[0] ||
     null;
@@ -1847,10 +2062,8 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
 
    const filterId = "velora-sharp-" + slugify(featured.id);
    const filterCss = buildPhotoFilterCss(featured.photoStyle, filterId);
-   const firstImg =
-    Array.isArray(featured.images) && featured.images.length > 0
-     ? featured.images[0]
-     : "";
+   const featuredImgs = normalizeProductImages(featured);
+   const firstImg = featuredImgs.length > 0 ? featuredImgs[0] : "";
 
    slot.innerHTML =
     '<button type="button" class="hero-spotlight" id="heroSpotlightBtn" aria-label="View featured find ' +
@@ -1888,7 +2101,8 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
 
    const filterId = "velora-sharp-" + slugify(p.id);
    const filterCss = buildPhotoFilterCss(p.photoStyle, filterId);
-   const firstImg = Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : "";
+   const cardImgs = normalizeProductImages(p);
+   const firstImg = cardImgs.length > 0 ? cardImgs[0] : "";
 
    const badgeText = p.badge
     ? p.badge
@@ -2050,7 +2264,8 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
 
   function renderProductDetail(p) {
    const container = document.getElementById("detailContainer");
-   const images = Array.isArray(p.images) && p.images.length > 0 ? p.images : [""];
+   const normImgs = normalizeProductImages(p);
+   const images = normImgs.length > 0 ? normImgs : [""];
    const activeImg = images[state.activeGalleryIndex] || images[0] || "";
    const filterId = "velora-sharp-" + slugify(p.id);
    const filterCss = buildPhotoFilterCss(p.photoStyle, filterId);
@@ -2441,7 +2656,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     btn.className =
     "prod-select-btn" +
     (p.id === state.editingProductId ? " is-active" : "");
-    btn.textContent = p.title || p.id;
+    btn.textContent = p.title || "Nouveau produit";
     btn.addEventListener("click", function () {
     state.editingProductId = p.id;
     activeAdminPreviewIndex = 0;
@@ -2464,7 +2679,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    const container = document.getElementById("uploadChipsContainer");
    const countBadge = document.getElementById("galleryCountBadge");
    container.innerHTML = "";
-   const imgs = Array.isArray(p.images) ? p.images : [];
+   const imgs = normalizeProductImages(p);
    if (countBadge) {
     countBadge.textContent =
      imgs.length === 0
@@ -2480,9 +2695,10 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
      (idx === 0 ? " is-primary" : "") +
      (idx === activeAdminPreviewIndex ? " is-selected" : "");
     const safeSrc = sanitizeUrl(src);
+    const previewSrc = uploadedPreviewCache[safeSrc] || safeSrc;
     chip.innerHTML =
     '<img src="' +
-    escapeHtml(safeSrc) +
+    escapeHtml(previewSrc) +
     '" alt="Photo ' +
     (idx + 1) +
     '" referrerpolicy="no-referrer" />' +
@@ -2558,7 +2774,8 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    imgEl.style.filter = filterCss;
 
    if (activeImg && sanitizeUrl(activeImg) !== "#") {
-    imgEl.src = sanitizeUrl(activeImg);
+    const safeUrl = sanitizeUrl(activeImg);
+    imgEl.src = uploadedPreviewCache[safeUrl] || safeUrl;
     imgEl.style.display = "block";
    } else {
     imgEl.removeAttribute("src");
@@ -2599,7 +2816,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    document.getElementById("sliderSharpness").value = ps.sharpness;
 
    document.getElementById("prodTitle").value = p.title || "";
-   document.getElementById("prodId").value = p.id || "";
+   document.getElementById("prodId").value = /^(?:new-find|nouveau-produit)-\d+$/i.test(p.id || "") && !p.title ? "" : (p.id || "");
    document.getElementById("prodPrice").value = p.price || "";
    document.getElementById("prodCategory").value = p.category || "";
    document.getElementById("prodRating").value = p.rating || "4.9";
@@ -2734,22 +2951,22 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    if (!p) return;
 
    const prevTitle = p.title || "";
-   const newTitle = document.getElementById("prodTitle").value.trim() || "Untitled Find";
+   const rawTitle = document.getElementById("prodTitle").value.trim();
    const idInputEl = document.getElementById("prodId");
-   const currentIdVal = slugify(idInputEl.value || "");
+   const rawIdTyped = idInputEl.value.trim();
+   const currentIdVal = rawIdTyped ? slugify(rawIdTyped) : "";
    const wasAutoId =
-    !idInputEl.value.trim() ||
-    /^new-find-\d+$/i.test(p.id) ||
-    currentIdVal === buildShortSlug(prevTitle) ||
-    currentIdVal === slugify(prevTitle);
+    !rawIdTyped ||
+    /^(?:new-find|nouveau-produit)-\d+$/i.test(p.id) ||
+    (prevTitle && currentIdVal === buildShortSlug(prevTitle)) ||
+    (prevTitle && currentIdVal === slugify(prevTitle));
 
-   let nextId = currentIdVal;
-   if (sourceFieldId === "prodTitle" && wasAutoId && newTitle !== "Untitled Find") {
-    nextId = makeUniqueSlug(buildShortSlug(newTitle), p);
+   let nextId = currentIdVal || p.id;
+   if (sourceFieldId === "prodTitle" && wasAutoId && rawTitle) {
+    nextId = makeUniqueSlug(buildShortSlug(rawTitle), p);
     idInputEl.value = nextId;
    } else if (!nextId) {
-    nextId = makeUniqueSlug(buildShortSlug(newTitle), p);
-    idInputEl.value = nextId;
+    nextId = makeUniqueSlug(buildShortSlug(rawTitle || "nouveau-produit"), p);
    } else if (nextId.length > 36 && sourceFieldId !== "prodId") {
     nextId = buildShortSlug(nextId);
    }
@@ -2757,8 +2974,8 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    p.id = nextId;
    state.editingProductId = nextId;
 
-   p.title = newTitle;
-   p.price = document.getElementById("prodPrice").value.trim() || "$0.00";
+   p.title = rawTitle;
+   p.price = document.getElementById("prodPrice").value.trim();
    p.category = document.getElementById("prodCategory").value.trim() || "Smart Home";
    p.rating = document.getElementById("prodRating").value.trim() || "4.9";
    p.badge = document.getElementById("prodBadge").value.trim();
@@ -2766,7 +2983,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    p.shortDesc = document.getElementById("prodShortDesc").value.trim();
    p.images = mergeExternalImageUrls(p.images, document.getElementById("prodImages").value);
    p.videoUrl = document.getElementById("prodVideo").value.trim();
-   p.link = document.getElementById("prodLink").value.trim() || "#";
+   p.link = document.getElementById("prodLink").value.trim();
    p.problemSolved = document.getElementById("prodProblem").value.trim();
    p.whyBuy = document.getElementById("prodWhyBuy").value.trim();
    p.tips = document.getElementById("prodTips").value.trim();
@@ -2879,6 +3096,22 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    if (ownerEl) ownerEl.value = conn.owner;
    if (repoEl) repoEl.value = conn.repo;
    if (tokenEl) tokenEl.value = conn.token;
+  }
+
+  function setGitHubTestStatus(type, msg) {
+   const box = document.getElementById("githubTestStatus");
+   if (!box) return;
+   box.className = "github-status-box";
+   if (!msg) {
+    box.classList.add("hidden");
+    box.textContent = "";
+    return;
+   }
+   box.classList.remove("hidden");
+   if (type === "progress") box.classList.add("is-progress");
+   else if (type === "success") box.classList.add("is-success");
+   else if (type === "error") box.classList.add("is-error");
+   box.textContent = msg;
   }
 
   function setGitHubPublishStatus(type, msg) {
@@ -3088,16 +3321,9 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
       return;
      }
 
-     const existing = Array.isArray(p.images) ? p.images : [];
-     const hasExistingUpload = existing.some(function (src) {
-      return /^data:image\//i.test(String(src || "").trim());
-     });
-     p.images = hasExistingUpload
-      ? existing.concat(dataUrls)
-      : dataUrls.concat(existing);
-     activeAdminPreviewIndex = hasExistingUpload
-      ? Math.max(0, p.images.length - dataUrls.length)
-      : 0;
+     const existing = normalizeProductImages(p);
+     p.images = existing.concat(dataUrls);
+     activeAdminPreviewIndex = existing.length;
 
      document.getElementById("prodImages").value = formatExternalUrlsForInput(p.images);
      renderUploadChips(p);
@@ -3249,40 +3475,46 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     showToast("✅ Produit enregistré dans le brouillon !");
    });
 
-   // Add New Product
+   // Add New Product (appends cleanly without erasing previous products, then clears form)
    document.getElementById("addNewProductBtn").addEventListener("click", function () {
-    const newId = "new-find-" + (state.products.length + 1);
+    readAdminProductFormIntoState();
+    const newId = makeUniqueSlug("nouveau-produit-" + (state.products.length + 1), null);
     const newProd = {
     id: newId,
-    title: "New Cozy Find",
-    price: "$19.90",
+    title: "",
+    price: "",
     category: "Smart Home",
     rating: "4.9",
     isBestSeller: false,
-    badge: "New Find",
-    shortDesc: "Thoughtful everyday upgrade designed to simplify your daily routine.",
+    badge: "",
+    shortDesc: "",
     images: [],
     photoStyle: Object.assign({}, DEFAULT_PHOTO_STYLE),
     videoUrl: "",
-    problemSolved: "Describe the everyday frustration this product solves.",
-    whyBuy: "Explain how this item solves it cleanly and effortlessly.",
-    tips: "First practical pro tip.\nSecond helpful tip.\nThird quick care reminder.",
-    features: ["Compact modern design", "Easy everyday setup"],
-    bestFor: "Home organizers and thoughtful gift shoppers.",
-    verdict: "A simple, practical upgrade worth adding to your routine.",
-    link: "https://www.aliexpress.com/",
+    problemSolved: "",
+    whyBuy: "",
+    tips: "",
+    features: [],
+    bestFor: "",
+    verdict: "",
+    link: "",
     };
     state.products.push(newProd);
     state.editingProductId = newId;
+    activeAdminPreviewIndex = 0;
     saveDraft();
     syncSvgSharpnessFilters();
     renderCategories();
     renderProductGrid();
     renderAdminWorkspace();
-    showToast("✨ Nouveau produit créé !");
+    const titleEl = document.getElementById("prodTitle");
+    if (titleEl) {
+     titleEl.focus();
+    }
+    showToast("✨ Nouveau produit ajouté ! Remplissez le formulaire vierge.");
    });
 
-   // Delete Product (2-step inline confirmation)
+   // Delete Product (2-step inline confirmation — only way a product is removed)
    document.getElementById("deleteProductBtn").addEventListener("click", function () {
     this.classList.add("hidden");
     document.getElementById("confirmDeleteProductBtn").classList.remove("hidden");
@@ -3296,10 +3528,14 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
    });
 
    document.getElementById("confirmDeleteProductBtn").addEventListener("click", function () {
+    const targetId = state.editingProductId;
+    if (targetId && state.deletedProductIds.indexOf(targetId) === -1) {
+     state.deletedProductIds.push(targetId);
+    }
     state.products = state.products.filter(function (p) {
-    return p.id !== state.editingProductId;
+    return p.id !== targetId;
     });
-    if (state.selectedProductId === state.editingProductId) {
+    if (state.selectedProductId === targetId) {
     goHome(true);
     }
     state.editingProductId =
@@ -3365,6 +3601,7 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     localStorage.removeItem(DRAFT_KEY);
     state.config = JSON.parse(JSON.stringify(baseConfig));
     state.products = JSON.parse(JSON.stringify(baseProducts));
+    state.deletedProductIds = [];
     state.editingProductId =
     state.products.length > 0 ? state.products[0].id : null;
     this.classList.add("hidden");
@@ -3394,6 +3631,40 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     });
    }
 
+   const testGithubBtn = document.getElementById("testGithubConnBtn");
+   if (testGithubBtn) {
+    testGithubBtn.addEventListener("click", async function () {
+     const btn = this;
+     if (btn.disabled) return;
+     const conn = saveGitHubConnFromInputs();
+
+     btn.disabled = true;
+     const originalLabel = btn.textContent;
+     btn.textContent = "⏳ Vérification en cours...";
+     setGitHubTestStatus("progress", "⏳ Vérification de la connexion GitHub...");
+
+     try {
+      const okMsg = await testGitHubConnection({
+       owner: conn.owner,
+       repo: conn.repo,
+       token: conn.token,
+      });
+      setGitHubTestStatus("success", okMsg);
+      showToast(okMsg);
+     } catch (err) {
+      const rawMsg = err && err.message ? err.message : "Impossible de vérifier GitHub.";
+      const friendlyMsg =
+       rawMsg === "Failed to fetch"
+        ? "Erreur réseau : impossible de joindre GitHub. Vérifiez votre connexion."
+        : rawMsg;
+      setGitHubTestStatus("error", "❌ " + friendlyMsg);
+     } finally {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+     }
+    });
+   }
+
    document.getElementById("publishGithubBtn").addEventListener("click", async function () {
     const btn = this;
     if (btn.disabled) return;
@@ -3406,16 +3677,20 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
     setGitHubPublishStatus("progress", "⏳ Préparation de la publication...");
 
     try {
-     await publishToGitHubSequential({
+     const pubResult = await publishToGitHubSequential({
       owner: conn.owner,
       repo: conn.repo,
       token: conn.token,
       config: state.config,
       products: state.products,
+      deletedIds: state.deletedProductIds,
       onProgress: function (msg) {
        setGitHubPublishStatus("progress", msg);
       },
-      onImageReplaced: function (prod) {
+      onImageReplaced: function (prod, imgIdx, imagePath, originalDataUrl) {
+       if (imagePath && originalDataUrl) {
+        uploadedPreviewCache[imagePath] = originalDataUrl;
+       }
        saveDraft();
        if (state.editingProductId === prod.id) {
         document.getElementById("prodImages").value = formatExternalUrlsForInput(prod.images);
@@ -3428,6 +3703,15 @@ button, input, textarea, select{font-family:inherit}:focus-visible{outline:2px s
        }
       },
      });
+     if (pubResult && Array.isArray(pubResult.products)) {
+      state.products = pubResult.products;
+      state.deletedProductIds = [];
+      saveDraft();
+      syncSvgSharpnessFilters();
+      renderCategories();
+      renderProductGrid();
+      renderAdminWorkspace();
+     }
      setGitHubPublishStatus("success", "✅ En ligne dans ~45 secondes !");
      showToast("✅ Site publié en direct sur GitHub !");
     } catch (err) {
