@@ -170,5 +170,32 @@ window.PRODUCTS = [
     "bestFor": "Students, bullet journalers, remote workers, and anyone who loves tactile daily checklists.",
     "verdict": "At under $20 with zero ongoing ink costs, it is easily one of the highest-utility desk companions you can slip into a bag.",
     "link": "https://www.aliexpress.com/"
+  },
+  {
+    "id": "nouveau-produit-6",
+    "title": "",
+    "price": "",
+    "category": "Smart Home",
+    "rating": "4.9",
+    "isBestSeller": false,
+    "badge": "",
+    "shortDesc": "",
+    "images": [
+      "images/nouveau-produit-6-0-1795485719395.jpg"
+    ],
+    "photoStyle": {
+      "brightness": 105,
+      "contrast": 105,
+      "saturate": 110,
+      "sharpness": 20
+    },
+    "videoUrl": "",
+    "problemSolved": "",
+    "whyBuy": "",
+    "tips": "",
+    "features": [],
+    "bestFor": "",
+    "verdict": "",
+    "link": ""
   }
 ];
