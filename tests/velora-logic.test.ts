@@ -50,6 +50,7 @@ function loadIndexHelpers() {
     extractFunction(indexHtml, 'mergeExternalImageUrls'),
     extractFunction(indexHtml, 'generateProduitsJsContent'),
     extractFunction(indexHtml, 'normalizeProductImages'),
+    extractFunction(indexHtml, 'getHeroSpotlightProducts'),
     extractFunction(indexHtml, 'detectGitHubDefaults'),
     extractFunction(indexHtml, 'buildGitHubRawFallbackUrl'),
     extractFunction(indexHtml, 'extractBase64FromDataUrl'),
@@ -62,7 +63,7 @@ function loadIndexHelpers() {
     extractFunction(indexHtml, 'formatGitHubApiError'),
     extractFunction(indexHtml, 'testGitHubConnection'),
     extractFunction(indexHtml, 'publishToGitHubSequential'),
-    'module.exports = { clampNum, normalizePhotoStyle, sanitizeUrl, slugify, buildShortSlug, normalizeSiteBaseUrl, splitTips, parseFeaturesInput, parseVideoSource, buildSharpnessKernel, buildPhotoFilterCss, buildPinterestProductUrl, formatExternalUrlsForInput, parseImagesCsv, mergeExternalImageUrls, generateProduitsJsContent, normalizeProductImages, detectGitHubDefaults, buildGitHubRawFallbackUrl, extractBase64FromDataUrl, encodeUtf8ToBase64, decodeBase64ToUtf8, extractJsonArrayAfterMarker, parseProduitsJsData, mergeProductsPreservingExisting, buildGitHubImagePath, formatGitHubApiError, testGitHubConnection, publishToGitHubSequential };',
+    'module.exports = { clampNum, normalizePhotoStyle, sanitizeUrl, slugify, buildShortSlug, normalizeSiteBaseUrl, splitTips, parseFeaturesInput, parseVideoSource, buildSharpnessKernel, buildPhotoFilterCss, buildPinterestProductUrl, formatExternalUrlsForInput, parseImagesCsv, mergeExternalImageUrls, generateProduitsJsContent, normalizeProductImages, getHeroSpotlightProducts, detectGitHubDefaults, buildGitHubRawFallbackUrl, extractBase64FromDataUrl, encodeUtf8ToBase64, decodeBase64ToUtf8, extractJsonArrayAfterMarker, parseProduitsJsData, mergeProductsPreservingExisting, buildGitHubImagePath, formatGitHubApiError, testGitHubConnection, publishToGitHubSequential };',
   ].join('\n\n');
 
   const sandbox: Record<string, unknown> = {
@@ -599,6 +600,72 @@ test('3-column responsive grid, auto-floating multi-angle gallery, 3-photo admin
   assert.ok(indexHtml.includes('placeholder="Ex: Under $25 ou Check Price"'));
 });
 
+test('smooth 60fps scroll, GPU-composited animations, overscroll containment, and soft view transitions are configured', () => {
+  assert.ok(indexHtml.includes('overscroll-behavior-y:smooth'));
+  assert.ok(indexHtml.includes('-webkit-overflow-scrolling:touch'));
+  assert.ok(indexHtml.includes('touch-action:manipulation'));
+  assert.ok(indexHtml.includes('@keyframes veloraSoftViewIn'));
+  assert.ok(indexHtml.includes('@keyframes veloraCardSoftIn'));
+  assert.ok(indexHtml.includes('overscroll-behavior:contain'));
+  assert.ok(indexHtml.includes('decoding="async"'));
+  assert.ok(indexHtml.includes('function smoothScrollToY('));
+  assert.ok(indexHtml.includes('function smoothScrollToElement('));
 
+  // Ensure veloraCtaFloat uses GPU transform only without per-frame box-shadow repaints
+  const ctaKeyframesMatch = indexHtml.match(/@keyframes veloraCtaFloat\{[^}]+\{[^}]+\}[^}]+\{[^}]+\}\}/);
+  assert.ok(ctaKeyframesMatch, 'veloraCtaFloat keyframes should exist');
+  assert.ok(!ctaKeyframesMatch[0].includes('box-shadow'), 'veloraCtaFloat should avoid animating box-shadow');
+  assert.ok(ctaKeyframesMatch[0].includes('translate3d('), 'veloraCtaFloat should use GPU translate3d');
+});
 
+test('main hero spotlight cycles every online and newly added product with soft floating animations', () => {
+  const { getHeroSpotlightProducts } = loadIndexHelpers().exports;
+  const items = getHeroSpotlightProducts([
+    { id: 'lamp', title: 'Warm Lamp', images: ['images/lamp.jpg'] },
+    { id: 'blank-draft', title: '', images: [] },
+    { id: 'new-find', title: 'New Cozy Mug', images: ['data:image/jpeg;base64,/9j/AAA'] },
+    { id: 'title-only', title: 'Velvet Tray', images: [] },
+  ]) as Array<Record<string, unknown>>;
 
+  assert.deepEqual(
+    items.map((p) => p.id),
+    ['lamp', 'new-find', 'title-only']
+  );
+  assert.ok(indexHtml.includes('.hero-spotlight{'));
+  assert.ok(indexHtml.includes('@keyframes veloraSpotlightFloat'));
+  assert.ok(indexHtml.includes('.spotlight-slide'));
+  assert.ok(!indexHtml.includes('spotlight-dots'), 'Hero spotlight should not show a dot-control bar');
+  assert.ok(indexHtml.includes('heroSpotlightTimer'));
+  assert.ok(indexHtml.includes('startHeroSpotlightFloat'));
+  assert.ok(indexHtml.includes('stopHeroSpotlightFloat'));
+});
+
+test('renamed or deleted products do not resurrect ghosts on GitHub publish and update hero spotlight cleanly', () => {
+  const { getHeroSpotlightProducts, mergeProductsPreservingExisting } = loadIndexHelpers().exports;
+
+  const merged = mergeProductsPreservingExisting(
+    [
+      { id: 'nouveau-produit-6', title: '', images: ['images/lamp.jpg'] },
+      { id: 'mini-pocket-printer', title: 'Mini Pocket Printer', images: ['images/printer.jpg'] },
+    ],
+    [
+      { id: 'cozy-bottle', title: 'Cozy Bottle', images: ['images/lamp.jpg'] },
+    ],
+    ['nouveau-produit-6', 'mini-pocket-printer']
+  ) as Array<Record<string, unknown>>;
+
+  assert.deepEqual(
+    Array.from(merged.map((p) => p.id)),
+    ['cozy-bottle']
+  );
+
+  const spotlightIds = Array.from((getHeroSpotlightProducts(merged) as Array<Record<string, unknown>>).map((p) => p.id));
+  assert.deepEqual(spotlightIds, ['cozy-bottle']);
+
+  const afterDelete = getHeroSpotlightProducts([]) as Array<Record<string, unknown>>;
+  assert.equal(afterDelete.length, 0);
+
+  assert.ok(indexHtml.includes('function focusHeroSpotlightProduct('));
+  assert.ok(indexHtml.includes('focusHeroSpotlightProduct(publishedTargetId)'));
+  assert.ok(indexHtml.includes('Suppression en cours sur GitHub'));
+});
