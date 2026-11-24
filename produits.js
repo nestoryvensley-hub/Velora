@@ -25,7 +25,7 @@ window.PRODUCTS = [
       "images/bottles-0-1795486208083.jpg"
     ],
     "photoStyle": {
-      "brightness": 105,
+      "brightness": 137,
       "contrast": 105,
       "saturate": 110,
       "sharpness": 37
@@ -53,6 +53,36 @@ window.PRODUCTS = [
     "shortDesc": "Thoughtful everyday upgrade designed to simplify your daily routine.",
     "images": [
       "images/new-find-2-0-1795486390663.jpg"
+    ],
+    "photoStyle": {
+      "brightness": 105,
+      "contrast": 105,
+      "saturate": 110,
+      "sharpness": 20
+    },
+    "videoUrl": "",
+    "problemSolved": "Describe the everyday frustration this product solves.",
+    "whyBuy": "Explain how this item solves it cleanly and effortlessly.",
+    "tips": "First practical pro tip.\nSecond helpful tip.\nThird quick care reminder.",
+    "features": [
+      "Compact modern design",
+      "Easy everyday setup"
+    ],
+    "bestFor": "Home organizers and thoughtful gift shoppers.",
+    "verdict": "A simple, practical upgrade worth adding to your routine.",
+    "link": "https://www.aliexpress.com/"
+  },
+  {
+    "id": "new-find-3",
+    "title": "New Cozy Find",
+    "price": "$19.90",
+    "category": "Smart Home",
+    "rating": "4.9",
+    "isBestSeller": false,
+    "badge": "New Find",
+    "shortDesc": "Thoughtful everyday upgrade designed to simplify your daily routine.",
+    "images": [
+      "images/new-find-3-0-1795486621297.jpg"
     ],
     "photoStyle": {
       "brightness": 105,
