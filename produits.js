@@ -101,5 +101,32 @@ window.PRODUCTS = [
     "bestFor": "Home organizers and thoughtful gift shoppers.",
     "verdict": "A simple, practical upgrade worth adding to your routine.",
     "link": "https://www.aliexpress.com/"
+  },
+  {
+    "id": "nouveau-produit-4",
+    "title": "",
+    "price": "",
+    "category": "Smart Home",
+    "rating": "4.9",
+    "isBestSeller": false,
+    "badge": "",
+    "shortDesc": "",
+    "images": [
+      "images/nouveau-produit-4-0-1795486870021.jpg"
+    ],
+    "photoStyle": {
+      "brightness": 105,
+      "contrast": 105,
+      "saturate": 110,
+      "sharpness": 20
+    },
+    "videoUrl": "",
+    "problemSolved": "",
+    "whyBuy": "",
+    "tips": "",
+    "features": [],
+    "bestFor": "",
+    "verdict": "",
+    "link": ""
   }
 ];
