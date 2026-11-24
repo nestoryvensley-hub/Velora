@@ -22,9 +22,7 @@ window.PRODUCTS = [
     "badge": "🔥 Best Seller",
     "shortDesc": "Inkless Bluetooth pocket printer for crisp study notes, daily checklists, and journal stickers.",
     "images": [
-      "images/bottles-0-1795485646447.jpg",
-      "images/bottles-1-1795545939420.jpg",
-      "images/bottles-2-1795545943089.jpg"
+      "images/bottles-0-1795485646447.jpg"
     ],
     "photoStyle": {
       "brightness": 83,
@@ -43,38 +41,6 @@ window.PRODUCTS = [
     ],
     "bestFor": "Students, bullet journalers, remote workers, and anyone who loves tactile daily checklists.",
     "verdict": "At under $20 with zero ongoing ink costs, it is easily one of the highest-utility desk companions you can slip into a bag.",
-    "link": "https://www.aliexpress.com/"
-  },
-  {
-    "id": "cordless-mushroom-lamp",
-    "title": "Cordless Mushroom Table Lamp",
-    "price": "$21.50",
-    "category": "Cozy Lighting",
-    "rating": "4.9",
-    "isBestSeller": true,
-    "badge": "🔥 Best Seller",
-    "shortDesc": "Touch-dimmable sculptural table lamp with a warm golden glow and 12-hour rechargeable battery.",
-    "images": [
-      "src/assets/images/product_mushroom_lamp_1795369636415.jpg"
-    ],
-    "photoStyle": {
-      "brightness": 105,
-      "contrast": 105,
-      "saturate": 110,
-      "sharpness": 20
-    },
-    "videoUrl": "",
-    "problemSolved": "Harsh overhead ceiling fixtures ruin evening wind-down routines, while traditional bedside lamps leave ugly tangled cords near wall outlets that are rarely where you actually want soft light.",
-    "whyBuy": "Designed with a smooth matte dome that bounces glare-free warm light downward, this cordless mushroom lamp transforms any bookshelf, dinner table, or nightstand into a calm retreat. Three tap-to-dim levels let you shift effortlessly from reading brightness to a candle-soft night glow.",
-    "tips": "Switch to the lowest warm amber setting 45 minutes before sleep to help your eyes unwind naturally.\nCarry it straight onto the dining table for instant bistro ambiance with zero trailing cables.\nRecharge with any standard USB-C phone cable for up to 12 hours of cordless glow.",
-    "features": [
-      "100% cordless freedom with hidden USB-C port",
-      "3-step touch dimming from warm amber to soft glow",
-      "Weighted matte base stays steady on narrow shelves",
-      "Up to 12 hours of battery life per single charge"
-    ],
-    "bestFor": "Renters, bedroom refreshers, cozy reading corners, and cord-free evening dining.",
-    "verdict": "Delivers genuine boutique lighting warmth at a fraction of designer glass lamp prices—effortless to place wherever a corner feels cold.",
     "link": "https://www.aliexpress.com/"
   },
   {
