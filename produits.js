@@ -286,5 +286,32 @@ window.PRODUCTS = [
     "bestFor": "",
     "verdict": "",
     "link": ""
+  },
+  {
+    "id": "nouveau-produit-10",
+    "title": "",
+    "price": "",
+    "category": "Smart Home",
+    "rating": "4.9",
+    "isBestSeller": false,
+    "badge": "",
+    "shortDesc": "",
+    "images": [
+      "images/nouveau-produit-10-0-1795546204111.jpg"
+    ],
+    "photoStyle": {
+      "brightness": 105,
+      "contrast": 139,
+      "saturate": 141,
+      "sharpness": 74
+    },
+    "videoUrl": "",
+    "problemSolved": "",
+    "whyBuy": "",
+    "tips": "",
+    "features": [],
+    "bestFor": "",
+    "verdict": "",
+    "link": ""
   }
 ];
