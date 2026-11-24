@@ -51,6 +51,7 @@ function loadIndexHelpers() {
     extractFunction(indexHtml, 'generateProduitsJsContent'),
     extractFunction(indexHtml, 'normalizeProductImages'),
     extractFunction(indexHtml, 'detectGitHubDefaults'),
+    extractFunction(indexHtml, 'buildGitHubRawFallbackUrl'),
     extractFunction(indexHtml, 'extractBase64FromDataUrl'),
     extractFunction(indexHtml, 'encodeUtf8ToBase64'),
     extractFunction(indexHtml, 'decodeBase64ToUtf8'),
@@ -61,7 +62,7 @@ function loadIndexHelpers() {
     extractFunction(indexHtml, 'formatGitHubApiError'),
     extractFunction(indexHtml, 'testGitHubConnection'),
     extractFunction(indexHtml, 'publishToGitHubSequential'),
-    'module.exports = { clampNum, normalizePhotoStyle, sanitizeUrl, slugify, buildShortSlug, normalizeSiteBaseUrl, splitTips, parseFeaturesInput, parseVideoSource, buildSharpnessKernel, buildPhotoFilterCss, buildPinterestProductUrl, formatExternalUrlsForInput, parseImagesCsv, mergeExternalImageUrls, generateProduitsJsContent, normalizeProductImages, detectGitHubDefaults, extractBase64FromDataUrl, encodeUtf8ToBase64, decodeBase64ToUtf8, extractJsonArrayAfterMarker, parseProduitsJsData, mergeProductsPreservingExisting, buildGitHubImagePath, formatGitHubApiError, testGitHubConnection, publishToGitHubSequential };',
+    'module.exports = { clampNum, normalizePhotoStyle, sanitizeUrl, slugify, buildShortSlug, normalizeSiteBaseUrl, splitTips, parseFeaturesInput, parseVideoSource, buildSharpnessKernel, buildPhotoFilterCss, buildPinterestProductUrl, formatExternalUrlsForInput, parseImagesCsv, mergeExternalImageUrls, generateProduitsJsContent, normalizeProductImages, detectGitHubDefaults, buildGitHubRawFallbackUrl, extractBase64FromDataUrl, encodeUtf8ToBase64, decodeBase64ToUtf8, extractJsonArrayAfterMarker, parseProduitsJsData, mergeProductsPreservingExisting, buildGitHubImagePath, formatGitHubApiError, testGitHubConnection, publishToGitHubSequential };',
   ].join('\n\n');
 
   const sandbox: Record<string, unknown> = {
@@ -556,6 +557,48 @@ test('publishToGitHubSequential merges remote products without erasing old ones,
   );
   assert.equal(abortedCalls.length, 1, 'Should stop immediately after image PUT error without updating produits.js');
 });
+
+test('3-column responsive grid, auto-floating multi-angle gallery, 3-photo admin slots, raw image fallbacks, and Explore Find CTA are intact', () => {
+  const { buildGitHubRawFallbackUrl } = loadIndexHelpers().exports;
+
+  assert.equal(
+    buildGitHubRawFallbackUrl('images/lamp-0-123.jpg', 'cozyuser', 'velora-finds', '', ''),
+    'https://raw.githubusercontent.com/cozyuser/velora-finds/main/images/lamp-0-123.jpg'
+  );
+  assert.equal(
+    buildGitHubRawFallbackUrl('./images/lamp-0-123.jpg', '', '', 'cozyuser.github.io', '/shop/index.html'),
+    'https://raw.githubusercontent.com/cozyuser/shop/main/images/lamp-0-123.jpg'
+  );
+  assert.equal(
+    buildGitHubRawFallbackUrl('images/lamp-0-123.jpg', '', '', 'cozyuser.github.io', '/'),
+    'https://raw.githubusercontent.com/cozyuser/cozyuser.github.io/main/images/lamp-0-123.jpg'
+  );
+  assert.equal(buildGitHubRawFallbackUrl('data:image/jpeg;base64,/9j/', 'cozyuser', 'shop', '', ''), '');
+
+  assert.ok(indexHtml.includes('.product-grid{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr))'));
+  assert.ok(indexHtml.includes('.related-grid{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr))'));
+  assert.ok(indexHtml.includes('.slice(0, 3)'));
+  assert.ok(indexHtml.includes('Explore Find →'));
+  assert.ok(!indexHtml.includes('View →'));
+  assert.ok(indexHtml.includes('@keyframes veloraCtaFloat'));
+  assert.ok(indexHtml.includes('flex-direction:column;align-items:center;justify-content:center;text-align:center'));
+  assert.ok(indexHtml.includes('@keyframes veloraSoftFloat'));
+  assert.ok(indexHtml.includes('detailAutoFloatTimer'));
+  assert.ok(indexHtml.includes('stopDetailAutoFloat'));
+  assert.ok(indexHtml.includes('id="adminPhotoSlots"'));
+  assert.ok(indexHtml.includes('Photo 1 (Principale)'));
+  assert.ok(indexHtml.includes('PREVIEW_CACHE_KEY'));
+  assert.ok(indexHtml.includes('id="galleryPrevBtn"'));
+  assert.ok(indexHtml.includes('id="galleryNextBtn"'));
+  assert.ok(indexHtml.includes('class="gallery-dots"'));
+  assert.ok(indexHtml.includes('class="card-photo-count"'));
+
+  const amazonPhrase = 'As an Amazon Associate I earn from qualifying purchases.';
+  const occurrences = indexHtml.split(amazonPhrase).length - 1;
+  assert.ok(occurrences >= 2, `Expected Amazon disclosure in footer and modal, found ${occurrences}`);
+  assert.ok(indexHtml.includes('placeholder="Ex: Under $25 ou Check Price"'));
+});
+
 
 
 
